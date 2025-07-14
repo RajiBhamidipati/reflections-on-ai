@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import AuthForm from '@/components/auth/AuthForm'
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 

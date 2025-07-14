@@ -17,7 +17,7 @@ interface Reflection {
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()

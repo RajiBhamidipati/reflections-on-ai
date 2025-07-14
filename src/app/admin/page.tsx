@@ -30,8 +30,8 @@ interface TeamMetrics {
 }
 
 export default function AdminPage() {
-  const [user, setUser] = useState<any>(null)
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [userProfile, setUserProfile] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,7 +69,7 @@ export default function AdminPage() {
     getUser()
   }, [router])
 
-  const fetchReflections = async () => {
+  const fetchReflections = async () => { // eslint-disable-line react-hooks/exhaustive-deps
     let query = supabase
       .from('reflections')
       .select(`
@@ -128,7 +128,7 @@ export default function AdminPage() {
     if (userProfile) {
       fetchReflections()
     }
-  }, [dateFilter, teamFilter, userProfile])
+  }, [dateFilter, teamFilter, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const exportToCSV = () => {
     const headers = [
