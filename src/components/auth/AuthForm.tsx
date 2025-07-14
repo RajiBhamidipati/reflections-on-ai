@@ -27,12 +27,17 @@ export default function AuthForm() {
         if (error) throw error
         setMessage('Login successful!')
       } else {
+        console.log('Starting signup process...')
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
         })
-        if (error) throw error
+        if (error) {
+          console.error('Signup error:', error)
+          throw error
+        }
 
+        console.log('Signup successful, creating profile...', data)
         if (data.user) {
           const { error: profileError } = await supabase
             .from('user_profiles')
@@ -45,11 +50,15 @@ export default function AuthForm() {
                 team: team || null,
               },
             ])
-          if (profileError) throw profileError
+          if (profileError) {
+            console.error('Profile creation error:', profileError)
+            throw profileError
+          }
         }
         setMessage('Registration successful! Please check your email to verify your account.')
       }
     } catch (error) {
+      console.error('Full error:', error)
       setMessage(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setLoading(false)
