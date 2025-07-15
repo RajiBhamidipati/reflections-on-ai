@@ -76,7 +76,7 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label htmlFor="bootcamp_date" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="bootcamp_date" className="block text-sm font-medium text-gray-900 mb-2">
               Bootcamp Date *
             </label>
             <input
@@ -86,12 +86,12 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
               value={formData.bootcamp_date}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
             />
           </div>
 
           <div>
-            <label htmlFor="bootcamp_session" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="bootcamp_session" className="block text-sm font-medium text-gray-900 mb-2">
               Session/Topic
             </label>
             <input
@@ -101,13 +101,13 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
               value={formData.bootcamp_session}
               onChange={handleChange}
               placeholder="e.g., Machine Learning Basics, ChatGPT Workshop"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="key_learnings" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="key_learnings" className="block text-sm font-medium text-gray-900 mb-2">
             Key Learnings *
           </label>
           <textarea
@@ -118,12 +118,12 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
             required
             rows={4}
             placeholder="What were the most important concepts, techniques, or insights you learned?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
           />
         </div>
 
         <div>
-          <label htmlFor="practical_applications" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="practical_applications" className="block text-sm font-medium text-gray-900 mb-2">
             Practical Applications *
           </label>
           <textarea
@@ -134,12 +134,12 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
             required
             rows={4}
             placeholder="How did you apply these learnings in your daily work? What specific tasks or projects benefited?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
           />
         </div>
 
         <div>
-          <label htmlFor="confidence_level" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="confidence_level" className="block text-sm font-medium text-gray-900 mb-2">
             Confidence Level: {formData.confidence_level}/10
           </label>
           <input
@@ -152,14 +152,14 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
             onChange={handleChange}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-gray-600 mt-1">
             <span>Not confident</span>
             <span>Very confident</span>
           </div>
         </div>
 
         <div>
-          <label htmlFor="success_moment" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="success_moment" className="block text-sm font-medium text-gray-900 mb-2">
             Success/Aha Moment *
           </label>
           <textarea
@@ -170,12 +170,12 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
             required
             rows={3}
             placeholder="Describe a moment when something clicked or you achieved a breakthrough..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
           />
         </div>
 
         <div>
-          <label htmlFor="recommendation_score" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="recommendation_score" className="block text-sm font-medium text-gray-900 mb-2">
             Recommendation Score: {formData.recommendation_score}/10
           </label>
           <input
@@ -188,7 +188,7 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
             onChange={handleChange}
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-gray-600 mt-1">
             <span>Would not recommend</span>
             <span>Highly recommend</span>
           </div>
