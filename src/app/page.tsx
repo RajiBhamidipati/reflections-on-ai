@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import AuthForm from '@/components/auth/AuthForm'
+import LandingPage from '@/components/LandingPage'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -41,21 +41,7 @@ export default function Home() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md mx-auto">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              AI Bootcamp Reflections
-            </h1>
-            <p className="text-gray-600 mb-8">
-              Document your AI learning journey and daily applications
-            </p>
-          </div>
-          <AuthForm />
-        </div>
-      </div>
-    )
+    return <LandingPage />
   }
 
   return (

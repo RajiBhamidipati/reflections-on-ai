@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import PersonalInsights from '@/components/PersonalInsights'
 
 interface Reflection {
   id: string
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('insights')
   const router = useRouter()
 
   useEffect(() => {
@@ -96,66 +98,99 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          {reflections.length === 0 ? (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                No reflections yet
-              </h2>
-              <p className="text-gray-600 mb-8">
-                Start documenting your AI learning journey
-              </p>
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200 mb-8">
+            <nav className="-mb-px flex space-x-8">
               <button
-                onClick={() => router.push('/new-reflection')}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
+                onClick={() => setActiveTab('insights')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'insights'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               >
-                Add Your First Reflection
+                Insights & Progress
               </button>
-            </div>
+              <button
+                onClick={() => setActiveTab('reflections')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'reflections'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                All Reflections
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'insights' ? (
+            <PersonalInsights />
           ) : (
-            <div className="space-y-6">
-              {reflections.map((reflection) => (
-                <div key={reflection.id} className="bg-white rounded-lg shadow-md p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {reflection.bootcamp_session || 'AI Bootcamp Session'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {new Date(reflection.bootcamp_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-600">
-                        Confidence: {reflection.confidence_level}/10
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Recommendation: {reflection.recommendation_score}/10
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Key Learnings</h4>
-                      <p className="text-gray-700">{reflection.key_learnings}</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Practical Applications</h4>
-                      <p className="text-gray-700">{reflection.practical_applications}</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Success Moment</h4>
-                      <p className="text-gray-700">{reflection.success_moment}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 text-xs text-gray-500">
-                    Submitted on {new Date(reflection.created_at).toLocaleDateString()}
-                  </div>
+            <div>
+              {reflections.length === 0 ? (
+                <div className="text-center py-12">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                    No reflections yet
+                  </h2>
+                  <p className="text-gray-600 mb-8">
+                    Start documenting your AI learning journey
+                  </p>
+                  <button
+                    onClick={() => router.push('/new-reflection')}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
+                  >
+                    Add Your First Reflection
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-6">
+                  {reflections.map((reflection) => (
+                    <div key={reflection.id} className="bg-white rounded-lg shadow-md p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {reflection.bootcamp_session || 'AI Bootcamp Session'}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {new Date(reflection.bootcamp_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">
+                            Confidence: {reflection.confidence_level}/10
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Recommendation: {reflection.recommendation_score}/10
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-2">Key Learnings</h4>
+                          <p className="text-gray-700">{reflection.key_learnings}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-2">Practical Applications</h4>
+                          <p className="text-gray-700">{reflection.practical_applications}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-2">Success Moment</h4>
+                          <p className="text-gray-700">{reflection.success_moment}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 text-xs text-gray-500">
+                        Submitted on {new Date(reflection.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
