@@ -20,7 +20,8 @@ interface ReflectionFormProps {
 
 export default function ReflectionForm({ onSuccess, editingReflection }: ReflectionFormProps) {
   const [formData, setFormData] = useState({
-    date: editingReflection?.bootcamp_date || new Date().toISOString().split('T')[0],
+    date: editingReflection?.bootcamp_date || '',
+    customDate: '',
     keyTakeaway: editingReflection?.key_learnings || '',
     overallFeeling: editingReflection ? mapConfidenceToFeeling(editingReflection.confidence_level) : '',
     sessionTopic: editingReflection?.bootcamp_session || '',
@@ -123,7 +124,8 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
       if (!editingReflection) {
         // Reset form for new reflections
         setFormData({
-          date: new Date().toISOString().split('T')[0],
+          date: '',
+          customDate: '',
           keyTakeaway: '',
           overallFeeling: '',
           sessionTopic: '',
@@ -142,7 +144,7 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
     }
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
@@ -150,7 +152,7 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
     }))
   }
 
-  const isFormValid = formData.date && formData.keyTakeaway && formData.overallFeeling
+  const isFormValid = formData.date && formData.date !== 'custom' && formData.keyTakeaway && formData.overallFeeling
 
   const getEngagementScore = () => {
     const optionalFields = [formData.sessionTopic, formData.realWorldApplication, formData.shareWin, formData.whatsNext]
@@ -175,15 +177,33 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
               <label htmlFor="date" className="block text-sm font-medium text-gray-900 mb-2">
                 When was this? *
               </label>
-              <input
+              <select
                 id="date"
                 name="date"
-                type="date"
                 value={formData.date}
                 onChange={handleChange}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-              />
+              >
+                <option value="">Select when this happened...</option>
+                <option value={new Date().toISOString().split('T')[0]}>Today</option>
+                <option value={new Date(Date.now() - 86400000).toISOString().split('T')[0]}>Yesterday</option>
+                <option value={new Date(Date.now() - 2*86400000).toISOString().split('T')[0]}>2 days ago</option>
+                <option value={new Date(Date.now() - 3*86400000).toISOString().split('T')[0]}>3 days ago</option>
+                <option value={new Date(Date.now() - 4*86400000).toISOString().split('T')[0]}>4 days ago</option>
+                <option value={new Date(Date.now() - 5*86400000).toISOString().split('T')[0]}>5 days ago</option>
+                <option value={new Date(Date.now() - 6*86400000).toISOString().split('T')[0]}>6 days ago</option>
+                <option value={new Date(Date.now() - 7*86400000).toISOString().split('T')[0]}>A week ago</option>
+                <option value="custom">Choose specific date...</option>
+              </select>
+              {formData.date === 'custom' && (
+                <input
+                  type="date"
+                  value={formData.customDate || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, customDate: e.target.value, date: e.target.value }))}
+                  className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                />
+              )}
             </div>
 
             {/* Key Takeaway */}
@@ -352,19 +372,28 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
         </div>
 
         {/* Submit Button */}
-        {isFormValid && (
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : editingReflection ? 'Update Check-in' : 'Share Your Check-in'}
-          </button>
-        )}
+        <button
+          type="submit"
+          disabled={loading || !isFormValid}
+          className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium transition-colors ${
+            isFormValid && !loading
+              ? 'text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+              : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+          }`}
+        >
+          {loading 
+            ? 'Saving...' 
+            : !isFormValid 
+              ? 'Please fill required fields' 
+              : editingReflection 
+                ? 'Update Check-in' 
+                : 'Share Your Check-in'
+          }
+        </button>
 
         {!isFormValid && (
-          <div className="text-center text-sm text-gray-500">
-            Please fill in all required fields to continue
+          <div className="text-center text-sm text-gray-500 mt-2">
+            Required: When was this, Key Takeaway, and Overall Feeling
           </div>
         )}
       </form>
