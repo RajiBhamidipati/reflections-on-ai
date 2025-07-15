@@ -41,7 +41,7 @@ export default function AuthForm() {
         if (data.user) {
           const { error: profileError } = await supabase
             .from('user_profiles')
-            .insert([
+            .upsert([
               {
                 id: data.user.id,
                 email,

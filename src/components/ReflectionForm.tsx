@@ -22,7 +22,11 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
     setMessage('')
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        console.error('Auth error:', authError)
+        throw new Error('Authentication failed: ' + authError.message)
+      }
       if (!user) throw new Error('User not authenticated')
 
       const { error } = await supabase
