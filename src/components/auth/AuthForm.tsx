@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 
 export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true)
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -12,6 +13,24 @@ export default function AuthForm() {
   const [team, setTeam] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      })
+      if (error) throw error
+      setMessage('Password reset link sent! Check your email.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +74,13 @@ export default function AuthForm() {
             throw profileError
           }
         }
-        setMessage('Registration successful! Please check your email to verify your account.')
+        if (data.user && !data.session) {
+          setMessage('Registration successful! Please check your email and click the confirmation link to verify your account.')
+        } else if (data.session) {
+          setMessage('Registration successful! You are now logged in.')
+        } else {
+          setMessage('Registration successful! Please check your email to verify your account.')
+        }
       }
     } catch (error) {
       console.error('Full error:', error)
@@ -63,6 +88,58 @@ export default function AuthForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showPasswordReset) {
+    return (
+      <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-center mb-6">
+          Reset Password
+        </h2>
+        
+        <form onSubmit={handlePasswordReset} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter your email address"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {loading ? 'Sending...' : 'Send Reset Link'}
+          </button>
+        </form>
+
+        {message && (
+          <div className={`mt-4 p-3 rounded-md ${
+            message.includes('sent') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowPasswordReset(false)}
+            className="text-blue-600 hover:text-blue-500"
+          >
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -153,6 +230,17 @@ export default function AuthForm() {
           {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Sign Up'}
         </button>
       </form>
+
+      {isLogin && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowPasswordReset(true)}
+            className="text-sm text-blue-600 hover:text-blue-500"
+          >
+            Forgot your password?
+          </button>
+        </div>
+      )}
 
       {message && (
         <div className={`mt-4 p-3 rounded-md ${
