@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -39,37 +39,7 @@ export default function AdminPage() {
   const [teamFilter, setTeamFilter] = useState('')
   const router = useRouter()
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      
-      if (!user) {
-        router.push('/')
-        return
-      }
-
-      // Check if user is admin
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile || profile.role !== 'admin') {
-        router.push('/dashboard')
-        return
-      }
-
-      setUserProfile(profile)
-      await fetchReflections()
-      setLoading(false)
-    }
-
-    getUser()
-  }, [router])
-
-  const fetchReflections = async () => { // eslint-disable-line react-hooks/exhaustive-deps
+  const fetchReflections = useCallback(async () => {
     let query = supabase
       .from('reflections')
       .select(`
@@ -99,7 +69,7 @@ export default function AdminPage() {
       setReflections(data || [])
       calculateTeamMetrics(data || [])
     }
-  }
+  }, [dateFilter, teamFilter])
 
   const calculateTeamMetrics = (reflections: Reflection[]) => {
     const teamData: { [key: string]: { count: number; totalConfidence: number; totalRecommendation: number } } = {}
@@ -125,10 +95,40 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      
+      if (!user) {
+        router.push('/')
+        return
+      }
+
+      // Check if user is admin
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile || profile.role !== 'admin') {
+        router.push('/dashboard')
+        return
+      }
+
+      setUserProfile(profile)
+      await fetchReflections()
+      setLoading(false)
+    }
+
+    getUser()
+  }, [router, fetchReflections])
+
+  useEffect(() => {
     if (userProfile) {
       fetchReflections()
     }
-  }, [dateFilter, teamFilter, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateFilter, teamFilter, userProfile, fetchReflections])
 
   const exportToCSV = () => {
     const headers = [

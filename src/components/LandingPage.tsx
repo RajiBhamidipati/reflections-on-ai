@@ -90,15 +90,12 @@ export default function LandingPage() {
               Document your AI bootcamp journey with structured reflections that accelerate learning, 
               boost confidence, and create measurable business impact.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <button
                 onClick={() => setShowAuth(true)}
                 className="bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
               >
                 Get Started
-              </button>
-              <button className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors">
-                Learn More
               </button>
             </div>
           </div>

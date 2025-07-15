@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -75,11 +76,11 @@ export default function AuthForm() {
           }
         }
         if (data.user && !data.session) {
-          setMessage('Registration successful! Please check your email and click the confirmation link to verify your account.')
+          setShowEmailConfirmation(true)
         } else if (data.session) {
           setMessage('Registration successful! You are now logged in.')
         } else {
-          setMessage('Registration successful! Please check your email to verify your account.')
+          setShowEmailConfirmation(true)
         }
       }
     } catch (error) {
@@ -136,6 +137,44 @@ export default function AuthForm() {
             className="text-blue-600 hover:text-blue-500"
           >
             Back to sign in
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (showEmailConfirmation) {
+    return (
+      <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+            <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Check Your Email
+          </h2>
+          <p className="text-gray-600 mb-6">
+            We&apos;ve sent a confirmation email to <strong>{email}</strong>. 
+            Please check your inbox and click the confirmation link to activate your account.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            Didn&apos;t receive the email? Check your spam folder or contact support.
+          </p>
+          <button
+            onClick={() => {
+              setShowEmailConfirmation(false)
+              setEmail('')
+              setPassword('')
+              setFirstName('')
+              setLastName('')
+              setTeam('')
+              setMessage('')
+            }}
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Back to Sign In
           </button>
         </div>
       </div>
