@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { TrendingUp, Target, Award, Calendar, Brain, Zap } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { TrendingUp, Award, Calendar, Brain, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface Reflection {
@@ -36,7 +36,7 @@ export default function PersonalInsights() {
 
   useEffect(() => {
     fetchReflections()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchReflections = async () => {
     try {
