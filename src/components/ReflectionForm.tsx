@@ -3,15 +3,29 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }) {
+interface ReflectionFormProps {
+  onSuccess?: () => void
+  editingReflection?: {
+    id: string
+    bootcamp_date: string
+    bootcamp_session: string
+    key_learnings: string
+    practical_applications: string
+    confidence_level: number
+    success_moment: string
+    recommendation_score: number
+  }
+}
+
+export default function ReflectionForm({ onSuccess, editingReflection }: ReflectionFormProps) {
   const [formData, setFormData] = useState({
-    bootcamp_date: '',
-    bootcamp_session: '',
-    key_learnings: '',
-    practical_applications: '',
-    confidence_level: 5,
-    success_moment: '',
-    recommendation_score: 5,
+    bootcamp_date: editingReflection?.bootcamp_date || '',
+    bootcamp_session: editingReflection?.bootcamp_session || '',
+    key_learnings: editingReflection?.key_learnings || '',
+    practical_applications: editingReflection?.practical_applications || '',
+    confidence_level: editingReflection?.confidence_level || 5,
+    success_moment: editingReflection?.success_moment || '',
+    recommendation_score: editingReflection?.recommendation_score || 5,
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -29,27 +43,43 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
       }
       if (!user) throw new Error('User not authenticated')
 
-      const { error } = await supabase
-        .from('reflections')
-        .insert([
-          {
-            user_id: user.id,
-            ...formData,
-          },
-        ])
+      let error
+      if (editingReflection) {
+        // Update existing reflection
+        const { error: updateError } = await supabase
+          .from('reflections')
+          .update(formData)
+          .eq('id', editingReflection.id)
+          .eq('user_id', user.id)
+        error = updateError
+      } else {
+        // Create new reflection
+        const { error: insertError } = await supabase
+          .from('reflections')
+          .insert([
+            {
+              user_id: user.id,
+              ...formData,
+            },
+          ])
+        error = insertError
+      }
 
       if (error) throw error
 
-      setMessage('Reflection submitted successfully!')
-      setFormData({
-        bootcamp_date: '',
-        bootcamp_session: '',
-        key_learnings: '',
-        practical_applications: '',
-        confidence_level: 5,
-        success_moment: '',
-        recommendation_score: 5,
-      })
+      setMessage(editingReflection ? 'Reflection updated successfully!' : 'Reflection submitted successfully!')
+      
+      if (!editingReflection) {
+        setFormData({
+          bootcamp_date: '',
+          bootcamp_session: '',
+          key_learnings: '',
+          practical_applications: '',
+          confidence_level: 5,
+          success_moment: '',
+          recommendation_score: 5,
+        })
+      }
       
       if (onSuccess) onSuccess()
     } catch (error) {
@@ -70,14 +100,14 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">
-        AI Bootcamp Reflection
+        {editingReflection ? 'Edit Reflection' : 'AI Bootcamp Reflection'}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="bootcamp_date" className="block text-sm font-medium text-gray-900 mb-2">
-              Bootcamp Date *
+              Date of AI Bootcamp Session *
             </label>
             <input
               id="bootcamp_date"
@@ -88,6 +118,7 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
             />
+            <p className="text-xs text-gray-600 mt-1">Select the date when you attended this AI bootcamp session</p>
           </div>
 
           <div>
@@ -199,7 +230,7 @@ export default function ReflectionForm({ onSuccess }: { onSuccess?: () => void }
           disabled={loading}
           className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {loading ? 'Submitting...' : 'Submit Reflection'}
+          {loading ? (editingReflection ? 'Updating...' : 'Submitting...') : (editingReflection ? 'Update Reflection' : 'Submit Reflection')}
         </button>
       </form>
 

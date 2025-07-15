@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import PersonalInsights from '@/components/PersonalInsights'
+import ReflectionForm from '@/components/ReflectionForm'
 
 interface Reflection {
   id: string
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('insights')
+  const [editingReflection, setEditingReflection] = useState<Reflection | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -157,13 +159,21 @@ export default function DashboardPage() {
                             {new Date(reflection.bootcamp_date).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">
-                            Confidence: {reflection.confidence_level}/10
+                        <div className="flex items-center space-x-4">
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600">
+                              Confidence: {reflection.confidence_level}/10
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Recommendation: {reflection.recommendation_score}/10
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            Recommendation: {reflection.recommendation_score}/10
-                          </div>
+                          <button
+                            onClick={() => setEditingReflection(reflection)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            Edit
+                          </button>
                         </div>
                       </div>
                       
@@ -195,6 +205,46 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Edit Modal */}
+      {editingReflection && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Edit Reflection</h3>
+              <button
+                onClick={() => setEditingReflection(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <ReflectionForm
+              editingReflection={editingReflection}
+              onSuccess={() => {
+                setEditingReflection(null)
+                // Refresh reflections
+                const getUser = async () => {
+                  const { data: { user } } = await supabase.auth.getUser()
+                  if (!user) return
+
+                  const { data } = await supabase
+                    .from('reflections')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+
+                  setReflections(data || [])
+                }
+                getUser()
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

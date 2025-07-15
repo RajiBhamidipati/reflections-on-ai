@@ -71,7 +71,7 @@ export default function LandingPage() {
               onClick={() => setShowAuth(true)}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Get Started
+              Sign In / Sign Up
             </button>
           </div>
         </div>
@@ -95,10 +95,10 @@ export default function LandingPage() {
                 onClick={() => setShowAuth(true)}
                 className="bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
               >
-                Start Reflecting Today
+                Get Started
               </button>
               <button className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors">
-                See How It Works
+                Learn More
               </button>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function LandingPage() {
             onClick={() => setShowAuth(true)}
             className="bg-white text-blue-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg hover:shadow-xl"
           >
-            Start Your Journey Today
+            Get Started Now
           </button>
         </div>
       </section>
