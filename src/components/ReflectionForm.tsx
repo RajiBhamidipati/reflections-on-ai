@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 
 interface ReflectionFormProps {
   onSuccess?: () => void
@@ -19,16 +20,52 @@ interface ReflectionFormProps {
 
 export default function ReflectionForm({ onSuccess, editingReflection }: ReflectionFormProps) {
   const [formData, setFormData] = useState({
-    bootcamp_date: editingReflection?.bootcamp_date || '',
-    bootcamp_session: editingReflection?.bootcamp_session || '',
-    key_learnings: editingReflection?.key_learnings || '',
-    practical_applications: editingReflection?.practical_applications || '',
-    confidence_level: editingReflection?.confidence_level || 5,
-    success_moment: editingReflection?.success_moment || '',
-    recommendation_score: editingReflection?.recommendation_score || 5,
+    date: editingReflection?.bootcamp_date || new Date().toISOString().split('T')[0],
+    keyTakeaway: editingReflection?.key_learnings || '',
+    overallFeeling: editingReflection ? mapConfidenceToFeeling(editingReflection.confidence_level) : '',
+    sessionTopic: editingReflection?.bootcamp_session || '',
+    realWorldApplication: editingReflection?.practical_applications || '',
+    shareWin: editingReflection?.success_moment || '',
+    whatsNext: '',
+    recommendationScore: editingReflection?.recommendation_score || 5,
   })
+  
+  const [showOptional, setShowOptional] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+
+  // Auto-save draft every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (formData.keyTakeaway || formData.sessionTopic || formData.realWorldApplication) {
+        localStorage.setItem('reflectionDraft', JSON.stringify(formData))
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [formData])
+
+  // Load draft on mount
+  useEffect(() => {
+    if (!editingReflection) {
+      const draft = localStorage.getItem('reflectionDraft')
+      if (draft) {
+        try {
+          const parsedDraft = JSON.parse(draft)
+          setFormData(prev => ({ ...prev, ...parsedDraft }))
+        } catch (error) {
+          console.error('Error loading draft:', error)
+        }
+      }
+    }
+  }, [editingReflection])
+
+  const feelingOptions = [
+    { value: 'breakthrough', emoji: '🎯', label: 'Had a breakthrough moment' },
+    { value: 'progress', emoji: '📈', label: 'Made steady progress' },
+    { value: 'practice', emoji: '🤔', label: 'Learned but need more practice' },
+    { value: 'overwhelmed', emoji: '😅', label: 'Felt overwhelmed but motivated' },
+    { value: 'uncertain', emoji: '🤷', label: 'Not sure if this clicked yet' },
+  ]
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,12 +80,23 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
       }
       if (!user) throw new Error('User not authenticated')
 
+      // Map new data structure to existing database fields
+      const dbData = {
+        bootcamp_date: formData.date,
+        bootcamp_session: formData.sessionTopic,
+        key_learnings: formData.keyTakeaway,
+        practical_applications: formData.realWorldApplication,
+        confidence_level: mapFeelingToConfidence(formData.overallFeeling),
+        success_moment: formData.shareWin,
+        recommendation_score: formData.recommendationScore,
+      }
+
       let error
       if (editingReflection) {
         // Update existing reflection
         const { error: updateError } = await supabase
           .from('reflections')
-          .update(formData)
+          .update(dbData)
           .eq('id', editingReflection.id)
           .eq('user_id', user.id)
         error = updateError
@@ -59,7 +107,7 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
           .insert([
             {
               user_id: user.id,
-              ...formData,
+              ...dbData,
             },
           ])
         error = insertError
@@ -67,17 +115,22 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
 
       if (error) throw error
 
-      setMessage(editingReflection ? 'Reflection updated successfully!' : 'Reflection submitted successfully!')
+      setMessage('Thanks for sharing! Your insights help the whole team learn.')
+      
+      // Clear draft on successful submit
+      localStorage.removeItem('reflectionDraft')
       
       if (!editingReflection) {
+        // Reset form for new reflections
         setFormData({
-          bootcamp_date: '',
-          bootcamp_session: '',
-          key_learnings: '',
-          practical_applications: '',
-          confidence_level: 5,
-          success_moment: '',
-          recommendation_score: 5,
+          date: new Date().toISOString().split('T')[0],
+          keyTakeaway: '',
+          overallFeeling: '',
+          sessionTopic: '',
+          realWorldApplication: '',
+          shareWin: '',
+          whatsNext: '',
+          recommendationScore: 5,
         })
       }
       
@@ -93,154 +146,263 @@ export default function ReflectionForm({ onSuccess, editingReflection }: Reflect
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('_level') || name.includes('_score') ? parseInt(value) : value
+      [name]: name === 'recommendationScore' ? parseInt(value) : value
     }))
+  }
+
+  const isFormValid = formData.date && formData.keyTakeaway && formData.overallFeeling
+
+  const getEngagementScore = () => {
+    const optionalFields = [formData.sessionTopic, formData.realWorldApplication, formData.shareWin, formData.whatsNext]
+    const filledFields = optionalFields.filter(field => field.trim().length > 0)
+    return Math.round((filledFields.length / optionalFields.length) * 100)
   }
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">
-        {editingReflection ? 'Edit Reflection' : 'AI Bootcamp Reflection'}
+        {editingReflection ? 'Edit Your Check-in' : 'Quick AI Learning Check-in'}
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor="bootcamp_date" className="block text-sm font-medium text-gray-900 mb-2">
-              Date of AI Bootcamp Session *
-            </label>
+        {/* Required Fields Section */}
+        <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+          <h3 className="text-lg font-semibold text-blue-900 mb-4">Quick essentials</h3>
+          
+          <div className="space-y-4">
+            {/* Date */}
+            <div>
+              <label htmlFor="date" className="block text-sm font-medium text-gray-900 mb-2">
+                When was this? *
+              </label>
+              <input
+                id="date"
+                name="date"
+                type="date"
+                value={formData.date}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+              />
+            </div>
+
+            {/* Key Takeaway */}
+            <div>
+              <label htmlFor="keyTakeaway" className="block text-sm font-medium text-gray-900 mb-2">
+                Key Takeaway *
+              </label>
+              <textarea
+                id="keyTakeaway"
+                name="keyTakeaway"
+                value={formData.keyTakeaway}
+                onChange={handleChange}
+                required
+                rows={3}
+                maxLength={500}
+                placeholder="What's the most interesting thing you learned, discovered, or realized? Even questions or confusions count!"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                {formData.keyTakeaway.length}/500 characters
+              </div>
+            </div>
+
+            {/* Overall Feeling */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-3">
+                Overall Feeling *
+              </label>
+              <div className="space-y-2">
+                {feelingOptions.map((option) => (
+                  <label key={option.value} className="flex items-center space-x-3 p-3 rounded-md border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="overallFeeling"
+                      value={option.value}
+                      checked={formData.overallFeeling === option.value}
+                      onChange={handleChange}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xl">{option.emoji}</span>
+                    <span className="text-sm text-gray-700">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Optional Fields Section */}
+        <div className="border border-gray-200 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setShowOptional(!showOptional)}
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-gray-50 rounded-t-lg"
+          >
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <span className="text-lg font-medium text-gray-900">Want to share more?</span>
+            </div>
+            {showOptional ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+          
+          {showOptional && (
+            <div className="p-6 space-y-4 border-t border-gray-200">
+              {/* Session Topic */}
+              <div>
+                <label htmlFor="sessionTopic" className="block text-sm font-medium text-gray-900 mb-2">
+                  Session/Topic
+                </label>
+                <input
+                  id="sessionTopic"
+                  name="sessionTopic"
+                  type="text"
+                  value={formData.sessionTopic}
+                  onChange={handleChange}
+                  placeholder="e.g., Prompt Engineering Workshop, GPT-4 experimentation, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                />
+              </div>
+
+              {/* Real World Application */}
+              <div>
+                <label htmlFor="realWorldApplication" className="block text-sm font-medium text-gray-900 mb-2">
+                  Did you try this at work or have ideas for using it?
+                </label>
+                <textarea
+                  id="realWorldApplication"
+                  name="realWorldApplication"
+                  value={formData.realWorldApplication}
+                  onChange={handleChange}
+                  rows={3}
+                  maxLength={400}
+                  placeholder="Any specific tasks, projects, or ideas where this might be useful?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {formData.realWorldApplication.length}/400 characters
+                </div>
+              </div>
+
+              {/* Share Win */}
+              <div>
+                <label htmlFor="shareWin" className="block text-sm font-medium text-gray-900 mb-2">
+                  Got a cool result or &apos;aha!&apos; moment to share?
+                </label>
+                <textarea
+                  id="shareWin"
+                  name="shareWin"
+                  value={formData.shareWin}
+                  onChange={handleChange}
+                  rows={3}
+                  maxLength={400}
+                  placeholder="What worked well or surprised you?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {formData.shareWin.length}/400 characters
+                </div>
+              </div>
+
+              {/* What's Next */}
+              <div>
+                <label htmlFor="whatsNext" className="block text-sm font-medium text-gray-900 mb-2">
+                  One thing you want to try or learn more about?
+                </label>
+                <input
+                  id="whatsNext"
+                  name="whatsNext"
+                  type="text"
+                  value={formData.whatsNext}
+                  onChange={handleChange}
+                  maxLength={200}
+                  placeholder="Next experiment, tool to explore, or skill to practice..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {formData.whatsNext.length}/200 characters
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Recommendation Section */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <label htmlFor="recommendationScore" className="block text-sm font-medium text-gray-900 mb-2">
+            Would you recommend this session/approach to a colleague?
+          </label>
+          <div className="flex items-center space-x-4">
+            <span className="text-xs text-gray-600">Wouldn&apos;t recommend</span>
             <input
-              id="bootcamp_date"
-              name="bootcamp_date"
-              type="date"
-              value={formData.bootcamp_date}
+              id="recommendationScore"
+              name="recommendationScore"
+              type="range"
+              min="1"
+              max="10"
+              value={formData.recommendationScore}
               onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
             />
-            <p className="text-xs text-gray-600 mt-1">Select the date when you attended this AI bootcamp session</p>
+            <span className="text-xs text-gray-600">Definitely recommend</span>
           </div>
-
-          <div>
-            <label htmlFor="bootcamp_session" className="block text-sm font-medium text-gray-900 mb-2">
-              Session/Topic
-            </label>
-            <input
-              id="bootcamp_session"
-              name="bootcamp_session"
-              type="text"
-              value={formData.bootcamp_session}
-              onChange={handleChange}
-              placeholder="e.g., Machine Learning Basics, ChatGPT Workshop"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-            />
+          <div className="text-center mt-2 text-sm font-medium text-gray-700">
+            {formData.recommendationScore}/10
           </div>
         </div>
 
-        <div>
-          <label htmlFor="key_learnings" className="block text-sm font-medium text-gray-900 mb-2">
-            Key Learnings *
-          </label>
-          <textarea
-            id="key_learnings"
-            name="key_learnings"
-            value={formData.key_learnings}
-            onChange={handleChange}
-            required
-            rows={4}
-            placeholder="What were the most important concepts, techniques, or insights you learned?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-          />
-        </div>
+        {/* Submit Button */}
+        {isFormValid && (
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {loading ? 'Saving...' : editingReflection ? 'Update Check-in' : 'Share Your Check-in'}
+          </button>
+        )}
 
-        <div>
-          <label htmlFor="practical_applications" className="block text-sm font-medium text-gray-900 mb-2">
-            Practical Applications *
-          </label>
-          <textarea
-            id="practical_applications"
-            name="practical_applications"
-            value={formData.practical_applications}
-            onChange={handleChange}
-            required
-            rows={4}
-            placeholder="How did you apply these learnings in your daily work? What specific tasks or projects benefited?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="confidence_level" className="block text-sm font-medium text-gray-900 mb-2">
-            Confidence Level: {formData.confidence_level}/10
-          </label>
-          <input
-            id="confidence_level"
-            name="confidence_level"
-            type="range"
-            min="1"
-            max="10"
-            value={formData.confidence_level}
-            onChange={handleChange}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-          />
-          <div className="flex justify-between text-xs text-gray-600 mt-1">
-            <span>Not confident</span>
-            <span>Very confident</span>
+        {!isFormValid && (
+          <div className="text-center text-sm text-gray-500">
+            Please fill in all required fields to continue
           </div>
-        </div>
-
-        <div>
-          <label htmlFor="success_moment" className="block text-sm font-medium text-gray-900 mb-2">
-            Success/Aha Moment *
-          </label>
-          <textarea
-            id="success_moment"
-            name="success_moment"
-            value={formData.success_moment}
-            onChange={handleChange}
-            required
-            rows={3}
-            placeholder="Describe a moment when something clicked or you achieved a breakthrough..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="recommendation_score" className="block text-sm font-medium text-gray-900 mb-2">
-            Recommendation Score: {formData.recommendation_score}/10
-          </label>
-          <input
-            id="recommendation_score"
-            name="recommendation_score"
-            type="range"
-            min="1"
-            max="10"
-            value={formData.recommendation_score}
-            onChange={handleChange}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-          />
-          <div className="flex justify-between text-xs text-gray-600 mt-1">
-            <span>Would not recommend</span>
-            <span>Highly recommend</span>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-        >
-          {loading ? (editingReflection ? 'Updating...' : 'Submitting...') : (editingReflection ? 'Update Reflection' : 'Submit Reflection')}
-        </button>
+        )}
       </form>
 
       {message && (
         <div className={`mt-4 p-3 rounded-md ${
-          message.includes('successfully') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          message.includes('Thanks') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
         }`}>
           {message}
         </div>
       )}
+
+      {/* Engagement Score */}
+      {showOptional && (
+        <div className="mt-4 text-center text-sm text-gray-500">
+          Engagement Score: {getEngagementScore()}% ({getEngagementScore() > 50 ? 'Great detail!' : 'Add more for richer insights'})
+        </div>
+      )}
     </div>
   )
+}
+
+// Helper functions to map between old and new data structures
+function mapConfidenceToFeeling(confidence: number): string {
+  if (confidence >= 9) return 'breakthrough'
+  if (confidence >= 7) return 'progress'
+  if (confidence >= 5) return 'practice'
+  if (confidence >= 3) return 'overwhelmed'
+  return 'uncertain'
+}
+
+function mapFeelingToConfidence(feeling: string): number {
+  switch (feeling) {
+    case 'breakthrough': return 9
+    case 'progress': return 7
+    case 'practice': return 5
+    case 'overwhelmed': return 3
+    case 'uncertain': return 1
+    default: return 5
+  }
 }
