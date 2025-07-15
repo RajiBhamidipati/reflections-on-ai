@@ -22,7 +22,7 @@ export default function AuthForm() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `https://reflections-on-ai.vercel.app/auth/callback`,
       })
       if (error) throw error
       setMessage('Password reset link sent! Check your email.')
@@ -52,7 +52,7 @@ export default function AuthForm() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/confirm-email`,
+            emailRedirectTo: `https://reflections-on-ai.vercel.app/auth/confirm-email`,
           },
         })
         if (error) {
