@@ -314,30 +314,67 @@ export default function AdminPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {reflections.map((reflection) => (
-                    <tr key={reflection.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {reflection.user_profiles?.first_name} {reflection.user_profiles?.last_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {reflection.user_profiles?.team || 'No Team'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(reflection.bootcamp_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {reflection.bootcamp_session || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {reflection.confidence_level}/10
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {reflection.recommendation_score}/10
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={reflection.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {reflection.user_profiles?.first_name} {reflection.user_profiles?.last_name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {reflection.user_profiles?.team || 'No Team'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(reflection.bootcamp_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {reflection.bootcamp_session || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {reflection.confidence_level}/10
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {reflection.recommendation_score}/10
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <button
+                            onClick={() => {
+                              const expandedRow = document.getElementById(`expanded-${reflection.id}`)
+                              if (expandedRow) {
+                                expandedRow.style.display = expandedRow.style.display === 'none' ? 'table-row' : 'none'
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                      <tr id={`expanded-${reflection.id}`} style={{ display: 'none' }} className="bg-gray-50">
+                        <td colSpan={7} className="px-6 py-4">
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="font-medium text-gray-900">Key Learnings:</h4>
+                              <p className="text-gray-700 mt-1">{reflection.key_learnings}</p>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">Practical Applications:</h4>
+                              <p className="text-gray-700 mt-1">{reflection.practical_applications}</p>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">Success/Aha Moment:</h4>
+                              <p className="text-gray-700 mt-1">{reflection.success_moment}</p>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Submitted: {new Date(reflection.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </>
                   ))}
                 </tbody>
               </table>
