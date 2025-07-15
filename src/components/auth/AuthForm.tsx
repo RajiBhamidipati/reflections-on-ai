@@ -53,6 +53,9 @@ export default function AuthForm() {
           password,
           options: {
             emailRedirectTo: `https://reflections-on-ai.vercel.app/auth/confirm-email`,
+            data: {
+              redirect_url: `https://reflections-on-ai.vercel.app/auth/confirm-email`,
+            },
           },
         })
         if (error) {
