@@ -1,11 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { Brain, TrendingUp, Target, Users, Lightbulb, BarChart3, Award, Clock, BookOpen, Zap } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Brain, TrendingUp, Target, Users, Lightbulb, BarChart3, Award, Clock, BookOpen, Zap, X } from 'lucide-react'
 import AuthForm from './auth/AuthForm'
 
 export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    // Check for error in URL params
+    const urlParams = new URLSearchParams(window.location.search)
+    const error = urlParams.get('error')
+    if (error) {
+      setErrorMessage(decodeURIComponent(error))
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   const benefits = [
     {
@@ -57,8 +69,27 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 fixed top-0 left-0 right-0 z-50">
+          <div className="flex justify-between items-center max-w-7xl mx-auto">
+            <div className="flex">
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{errorMessage}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setErrorMessage('')}
+              className="text-red-400 hover:text-red-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className={`bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky z-40 ${errorMessage ? 'top-12' : 'top-0'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">

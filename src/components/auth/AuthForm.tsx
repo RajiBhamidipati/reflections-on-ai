@@ -51,6 +51,9 @@ export default function AuthForm() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/confirm-email`,
+          },
         })
         if (error) {
           console.error('Signup error:', error)
@@ -159,6 +162,11 @@ export default function AuthForm() {
             We&apos;ve sent a confirmation email to <strong>{email}</strong>. 
             Please check your inbox and click the confirmation link to activate your account.
           </p>
+          <div className="bg-blue-50 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>Important:</strong> After clicking the confirmation link, you&apos;ll be redirected back to our application and automatically logged in. No additional codes or passwords needed!
+            </p>
+          </div>
           <p className="text-sm text-gray-500 mb-6">
             Didn&apos;t receive the email? Check your spam folder or contact support.
           </p>
