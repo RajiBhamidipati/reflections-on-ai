@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
+  const type = searchParams.get('type')
   const next = searchParams.get('next') ?? '/auth/confirmed'
   const error = searchParams.get('error')
   const error_description = searchParams.get('error_description')
@@ -25,6 +26,11 @@ export async function GET(request: NextRequest) {
       if (error) {
         console.error('Error exchanging code for session:', error)
         return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(error.message)}`, request.url))
+      }
+      
+      // If this is a password recovery, redirect to update password page
+      if (type === 'recovery') {
+        return NextResponse.redirect(new URL('/auth/update-password', request.url))
       }
     } catch (err) {
       console.error('Unexpected error during auth callback:', err)
