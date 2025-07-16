@@ -3,8 +3,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { Search, Calendar, TrendingUp, Users, Award, Activity, ChevronUp, ChevronDown } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
+import { Search, Calendar, TrendingUp, Users, Award, Activity, ChevronUp, ChevronDown, Moon, Sun, Download, RefreshCw, BookOpen, Heart, Clock, FileText } from 'lucide-react'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+import Sentiment from 'sentiment'
 
 interface Reflection {
   id: string
@@ -16,6 +19,22 @@ interface Reflection {
   success_moment: string
   recommendation_score: number
   created_at: string
+  user_profiles: {
+    first_name: string
+    last_name: string
+    team: string
+    email: string
+  }
+}
+
+interface JournalEntry {
+  id: string
+  title?: string
+  content: string
+  mood?: string
+  tags?: string[]
+  created_at: string
+  user_id: string
   user_profiles: {
     first_name: string
     last_name: string
@@ -44,19 +63,54 @@ interface UserEngagement {
   email: string
   team: string
   totalReflections: number
+  totalJournalEntries: number
   avgConfidence: number
   lastActivity: string
   streak: number
+}
+
+interface SentimentData {
+  date: string
+  sentiment: number
+  moodDistribution: {
+    great: number
+    good: number
+    okay: number
+    down: number
+  }
+}
+
+interface ParticipationPattern {
+  hour: number
+  dayOfWeek: number
+  count: number
+  day: string
+}
+
+interface LearningProgress {
+  userId: string
+  name: string
+  confidenceProgression: Array<{
+    date: string
+    confidence: number
+    week: number
+  }>
 }
 
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [userProfile, setUserProfile] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [reflections, setReflections] = useState<Reflection[]>([])
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>([])
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [userEngagement, setUserEngagement] = useState<UserEngagement[]>([])
+  const [sentimentData, setSentimentData] = useState<SentimentData[]>([])
+  const [participationPatterns, setParticipationPatterns] = useState<ParticipationPattern[]>([])
+  const [learningProgress, setLearningProgress] = useState<LearningProgress[]>([])
   const [loading, setLoading] = useState(true)
+  const [darkMode, setDarkMode] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
   const [dateFilter, setDateFilter] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -95,11 +149,55 @@ export default function AdminPage() {
       console.error('Error fetching reflections:', error)
     } else {
       setReflections(data || [])
-      calculateTeamMetrics(data || [])
-      calculateChartData(data || [])
-      calculateUserEngagement(data || [])
     }
   }, [dateFilter, teamFilter])
+
+  const fetchJournalEntries = useCallback(async () => {
+    let query = supabase
+      .from('journal_entries')
+      .select(`
+        *,
+        user_profiles (
+          first_name,
+          last_name,
+          team,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (dateFilter) {
+      query = query.gte('created_at', dateFilter)
+    }
+
+    if (teamFilter) {
+      query = query.eq('user_profiles.team', teamFilter)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error fetching journal entries:', error)
+    } else {
+      setJournalEntries(data || [])
+    }
+  }, [dateFilter, teamFilter])
+
+  const fetchAllData = useCallback(async () => {
+    await Promise.all([fetchReflections(), fetchJournalEntries()])
+  }, [fetchReflections, fetchJournalEntries])
+
+  // Calculate all metrics when data changes
+  useEffect(() => {
+    if (reflections.length > 0 || journalEntries.length > 0) {
+      calculateTeamMetrics(reflections)
+      calculateChartData(reflections)
+      calculateUserEngagement(reflections, journalEntries)
+      calculateSentimentData(reflections, journalEntries)
+      calculateParticipationPatterns(reflections, journalEntries)
+      calculateLearningProgress(reflections)
+    }
+  }, [reflections, journalEntries])
 
   const calculateTeamMetrics = (reflections: Reflection[]) => {
     const teamData: { [key: string]: { count: number; totalConfidence: number; totalRecommendation: number } } = {}
@@ -154,17 +252,19 @@ export default function AdminPage() {
     setChartData(chartData)
   }
 
-  const calculateUserEngagement = (reflections: Reflection[]) => {
+  const calculateUserEngagement = (reflections: Reflection[], journalEntries: JournalEntry[]) => {
     const userData: { [key: string]: {
       name: string
       email: string
       team: string
       totalReflections: number
+      totalJournalEntries: number
       totalConfidence: number
       lastActivity: string
       dates: string[]
     } } = {}
 
+    // Process reflections
     reflections.forEach(reflection => {
       const userId = reflection.user_profiles?.email || 'unknown'
       const name = `${reflection.user_profiles?.first_name || ''} ${reflection.user_profiles?.last_name || ''}`.trim()
@@ -175,6 +275,7 @@ export default function AdminPage() {
           email: userId,
           team: reflection.user_profiles?.team || 'No Team',
           totalReflections: 0,
+          totalJournalEntries: 0,
           totalConfidence: 0,
           lastActivity: reflection.created_at,
           dates: []
@@ -187,6 +288,32 @@ export default function AdminPage() {
       
       if (new Date(reflection.created_at) > new Date(userData[userId].lastActivity)) {
         userData[userId].lastActivity = reflection.created_at
+      }
+    })
+
+    // Process journal entries
+    journalEntries.forEach(entry => {
+      const userId = entry.user_profiles?.email || 'unknown'
+      const name = `${entry.user_profiles?.first_name || ''} ${entry.user_profiles?.last_name || ''}`.trim()
+      
+      if (!userData[userId]) {
+        userData[userId] = {
+          name: name || 'Unknown User',
+          email: userId,
+          team: entry.user_profiles?.team || 'No Team',
+          totalReflections: 0,
+          totalJournalEntries: 0,
+          totalConfidence: 0,
+          lastActivity: entry.created_at,
+          dates: []
+        }
+      }
+      
+      userData[userId].totalJournalEntries += 1
+      userData[userId].dates.push(entry.created_at.split('T')[0])
+      
+      if (new Date(entry.created_at) > new Date(userData[userId].lastActivity)) {
+        userData[userId].lastActivity = entry.created_at
       }
     })
 
@@ -215,12 +342,156 @@ export default function AdminPage() {
       email: data.email,
       team: data.team,
       totalReflections: data.totalReflections,
-      avgConfidence: Number((data.totalConfidence / data.totalReflections).toFixed(1)),
+      totalJournalEntries: data.totalJournalEntries,
+      avgConfidence: data.totalReflections > 0 ? Number((data.totalConfidence / data.totalReflections).toFixed(1)) : 0,
       lastActivity: data.lastActivity,
       streak: calculateStreak(data.dates)
     }))
 
-    setUserEngagement(engagementData.sort((a, b) => b.totalReflections - a.totalReflections))
+    setUserEngagement(engagementData.sort((a, b) => (b.totalReflections + b.totalJournalEntries) - (a.totalReflections + a.totalJournalEntries)))
+  }
+
+  const calculateSentimentData = (reflections: Reflection[], journalEntries: JournalEntry[]) => {
+    const sentiment = new Sentiment()
+    const dateData: { [key: string]: { 
+      sentimentScores: number[]
+      moods: { great: number; good: number; okay: number; down: number }
+    } } = {}
+
+    // Process reflections for sentiment
+    reflections.forEach(reflection => {
+      const date = new Date(reflection.bootcamp_date).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      
+      if (!dateData[date]) {
+        dateData[date] = {
+          sentimentScores: [],
+          moods: { great: 0, good: 0, okay: 0, down: 0 }
+        }
+      }
+      
+      const text = `${reflection.key_learnings} ${reflection.practical_applications} ${reflection.success_moment}`
+      const score = sentiment.analyze(text).score
+      dateData[date].sentimentScores.push(score)
+    })
+
+    // Process journal entries for sentiment and mood
+    journalEntries.forEach(entry => {
+      const date = new Date(entry.created_at).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      
+      if (!dateData[date]) {
+        dateData[date] = {
+          sentimentScores: [],
+          moods: { great: 0, good: 0, okay: 0, down: 0 }
+        }
+      }
+      
+      const score = sentiment.analyze(entry.content).score
+      dateData[date].sentimentScores.push(score)
+      
+      if (entry.mood) {
+        const mood = entry.mood as 'great' | 'good' | 'okay' | 'down'
+        if (mood in dateData[date].moods) {
+          dateData[date].moods[mood]++
+        }
+      }
+    })
+
+    const sentimentData = Object.entries(dateData)
+      .map(([date, data]) => ({
+        date,
+        sentiment: data.sentimentScores.length > 0 
+          ? data.sentimentScores.reduce((sum, score) => sum + score, 0) / data.sentimentScores.length
+          : 0,
+        moodDistribution: data.moods
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    setSentimentData(sentimentData)
+  }
+
+  const calculateParticipationPatterns = (reflections: Reflection[], journalEntries: JournalEntry[]) => {
+    const patterns: { [key: string]: number } = {}
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+    // Process reflections
+    reflections.forEach(reflection => {
+      const date = new Date(reflection.created_at)
+      const hour = date.getHours()
+      const dayOfWeek = date.getDay()
+      const key = `${dayOfWeek}-${hour}`
+      patterns[key] = (patterns[key] || 0) + 1
+    })
+
+    // Process journal entries
+    journalEntries.forEach(entry => {
+      const date = new Date(entry.created_at)
+      const hour = date.getHours()
+      const dayOfWeek = date.getDay()
+      const key = `${dayOfWeek}-${hour}`
+      patterns[key] = (patterns[key] || 0) + 1
+    })
+
+    const participationData = Object.entries(patterns).map(([key, count]) => {
+      const [dayOfWeek, hour] = key.split('-').map(Number)
+      return {
+        hour,
+        dayOfWeek,
+        count,
+        day: daysOfWeek[dayOfWeek]
+      }
+    })
+
+    setParticipationPatterns(participationData)
+  }
+
+  const calculateLearningProgress = (reflections: Reflection[]) => {
+    const userProgress: { [key: string]: {
+      name: string
+      confidencePoints: Array<{ date: string; confidence: number }>
+    } } = {}
+
+    reflections.forEach(reflection => {
+      const userId = reflection.user_profiles?.email || 'unknown'
+      const name = `${reflection.user_profiles?.first_name || ''} ${reflection.user_profiles?.last_name || ''}`.trim()
+      
+      if (!userProgress[userId]) {
+        userProgress[userId] = {
+          name: name || 'Unknown User',
+          confidencePoints: []
+        }
+      }
+      
+      userProgress[userId].confidencePoints.push({
+        date: reflection.bootcamp_date,
+        confidence: reflection.confidence_level
+      })
+    })
+
+    const progressData = Object.entries(userProgress).map(([userId, data]) => {
+      const sortedPoints = data.confidencePoints.sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
+      
+      const confidenceProgression = sortedPoints.map((point, index) => ({
+        date: point.date,
+        confidence: point.confidence,
+        week: index + 1
+      }))
+
+      return {
+        userId,
+        name: data.name,
+        confidenceProgression
+      }
+    })
+
+    setLearningProgress(progressData.filter(user => user.confidenceProgression.length > 1))
   }
 
   useEffect(() => {
@@ -246,18 +517,38 @@ export default function AdminPage() {
       }
 
       setUserProfile(profile)
-      await fetchReflections()
+      await fetchAllData()
       setLoading(false)
     }
 
     getUser()
-  }, [router, fetchReflections])
+  }, [router, fetchAllData])
 
   useEffect(() => {
     if (userProfile) {
-      fetchReflections()
+      fetchAllData()
     }
-  }, [dateFilter, teamFilter, userProfile, fetchReflections])
+  }, [dateFilter, teamFilter, userProfile, fetchAllData])
+
+  // Auto-refresh functionality
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        fetchAllData()
+      }, 30000) // Refresh every 30 seconds
+      
+      return () => clearInterval(interval)
+    }
+  }, [autoRefresh, fetchAllData])
+
+  // Dark mode effect
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
 
   const exportToCSV = () => {
     const headers = [
@@ -299,6 +590,38 @@ export default function AdminPage() {
     a.download = `reflections-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+  }
+
+  const exportToPDF = async () => {
+    const pdf = new jsPDF()
+    const dashboardElement = document.getElementById('dashboard-content')
+    
+    if (dashboardElement) {
+      const canvas = await html2canvas(dashboardElement, {
+        scale: 0.5,
+        useCORS: true,
+        allowTaint: true
+      })
+      
+      const imgData = canvas.toDataURL('image/png')
+      const imgWidth = 210
+      const pageHeight = 295
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      let position = 0
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+      
+      pdf.save(`admin-dashboard-${new Date().toISOString().split('T')[0]}.pdf`)
+    }
   }
 
   const handleSignOut = async () => {
@@ -362,11 +685,16 @@ export default function AdminPage() {
 
   // Stats
   const totalResponses = reflections.length
+  const totalJournalEntries = journalEntries.length
+  const totalEntries = totalResponses + totalJournalEntries
   const avgConfidence = reflections.length > 0 
     ? (reflections.reduce((sum, r) => sum + r.confidence_level, 0) / reflections.length).toFixed(1)
     : 0
   const avgRecommendation = reflections.length > 0
     ? (reflections.reduce((sum, r) => sum + r.recommendation_score, 0) / reflections.length).toFixed(1)
+    : 0
+  const avgSentiment = sentimentData.length > 0
+    ? (sentimentData.reduce((sum, s) => sum + s.sentiment, 0) / sentimentData.length).toFixed(1)
     : 0
 
   // Helper functions
@@ -397,19 +725,50 @@ export default function AdminPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
+    <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <header className={`shadow transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Admin Analytics
+            <h1 className={`text-3xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Admin Analytics Dashboard
             </h1>
-            <div className="flex space-x-4">
+            <div className="flex space-x-4 items-center">
+              <button
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors duration-200 ${
+                  autoRefresh 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : darkMode 
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+                <span>{autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
+              </button>
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-md transition-colors duration-200 ${
+                  darkMode 
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+              <button
+                onClick={exportToPDF}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center space-x-2"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export PDF</span>
+              </button>
               <button
                 onClick={exportToCSV}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center space-x-2"
               >
-                Export CSV
+                <Download className="h-4 w-4" />
+                <span>Export CSV</span>
               </button>
               <button
                 onClick={handleSignOut}
@@ -423,50 +782,64 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+        <div id="dashboard-content" className="px-4 py-6 sm:px-0">
           {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Users className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-500">Total Responses</h3>
-                  <p className="text-2xl font-bold text-gray-900">{totalResponses}</p>
+                  <h3 className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Entries</h3>
+                  <p className={`text-2xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{totalEntries}</p>
+                  <p className={`text-xs transition-colors duration-200 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {totalResponses} reflections, {totalJournalEntries} journal
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <TrendingUp className="w-6 h-6 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-500">Avg Confidence</h3>
-                  <p className="text-2xl font-bold text-gray-900">{avgConfidence}/10</p>
+                  <h3 className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Avg Confidence</h3>
+                  <p className={`text-2xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{avgConfidence}/10</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center">
                 <div className="p-2 bg-purple-100 rounded-lg">
                   <Award className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-500">Avg Recommendation</h3>
-                  <p className="text-2xl font-bold text-gray-900">{avgRecommendation}/10</p>
+                  <h3 className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Avg Recommendation</h3>
+                  <p className={`text-2xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{avgRecommendation}/10</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="flex items-center">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Heart className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Avg Sentiment</h3>
+                  <p className={`text-2xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{avgSentiment}</p>
+                </div>
+              </div>
+            </div>
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center">
                 <div className="p-2 bg-orange-100 rounded-lg">
                   <Activity className="w-6 h-6 text-orange-600" />
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-sm font-medium text-gray-500">Active Users</h3>
-                  <p className="text-2xl font-bold text-gray-900">{userEngagement.length}</p>
+                  <h3 className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Active Users</h3>
+                  <p className={`text-2xl font-bold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{userEngagement.length}</p>
                 </div>
               </div>
             </div>
@@ -475,15 +848,21 @@ export default function AdminPage() {
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Confidence Trends */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Confidence Trends Over Time</h3>
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Confidence Trends Over Time</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis domain={[0, 10]} />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#E5E7EB'} />
+                    <XAxis dataKey="date" tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <YAxis domain={[0, 10]} tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+                        border: `1px solid ${darkMode ? '#374151' : '#E5E7EB'}`,
+                        color: darkMode ? '#FFFFFF' : '#000000'
+                      }} 
+                    />
                     <Line 
                       type="monotone" 
                       dataKey="confidence" 
@@ -505,53 +884,224 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Sentiment Analysis */}
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Sentiment Trends Over Time</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={sentimentData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#E5E7EB'} />
+                    <XAxis dataKey="date" tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <YAxis tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+                        border: `1px solid ${darkMode ? '#374151' : '#E5E7EB'}`,
+                        color: darkMode ? '#FFFFFF' : '#000000'
+                      }} 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="sentiment" 
+                      stroke="#8B5CF6" 
+                      fill="#8B5CF6" 
+                      fillOpacity={0.3}
+                      name="Sentiment Score"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
             {/* Team Performance */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Team Performance</h3>
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Team Performance</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={teamMetrics}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="team" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#E5E7EB'} />
+                    <XAxis dataKey="team" tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <YAxis tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+                        border: `1px solid ${darkMode ? '#374151' : '#E5E7EB'}`,
+                        color: darkMode ? '#FFFFFF' : '#000000'
+                      }} 
+                    />
                     <Bar dataKey="avgConfidence" fill="#3B82F6" name="Avg Confidence" />
                     <Bar dataKey="avgRecommendation" fill="#10B981" name="Avg Recommendation" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* Learning Progress */}
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Learning Progress (Top 5 Users)</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={learningProgress.slice(0, 5).flatMap(user => 
+                    user.confidenceProgression.map(point => ({
+                      ...point,
+                      user: user.name
+                    }))
+                  )}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#E5E7EB'} />
+                    <XAxis dataKey="week" tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <YAxis domain={[0, 10]} tick={{ fill: darkMode ? '#D1D5DB' : '#6B7280' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+                        border: `1px solid ${darkMode ? '#374151' : '#E5E7EB'}`,
+                        color: darkMode ? '#FFFFFF' : '#000000'
+                      }} 
+                    />
+                    {learningProgress.slice(0, 5).map((user, index) => (
+                      <Line 
+                        key={user.userId}
+                        type="monotone" 
+                        dataKey="confidence" 
+                        stroke={['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'][index]}
+                        strokeWidth={2}
+                        dot={{ fill: ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'][index], strokeWidth: 2, r: 3 }}
+                        name={user.name}
+                        data={user.confidenceProgression}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* New Analytics Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            {/* Participation Patterns Heatmap */}
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Participation Patterns (By Hour & Day)</h3>
+              <div className="h-64">
+                <div className="grid grid-cols-7 gap-1 h-full">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dayIndex) => (
+                    <div key={day} className="flex flex-col">
+                      <div className={`text-xs text-center mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {day}
+                      </div>
+                      <div className="flex-1 grid grid-rows-24 gap-0.5">
+                        {Array.from({ length: 24 }, (_, hour) => {
+                          const pattern = participationPatterns.find(p => p.dayOfWeek === dayIndex && p.hour === hour)
+                          const intensity = pattern ? Math.min(pattern.count / 10, 1) : 0
+                          return (
+                            <div
+                              key={hour}
+                              className={`rounded-sm transition-all duration-200 ${
+                                darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                              }`}
+                              style={{
+                                backgroundColor: intensity > 0 
+                                  ? `rgba(59, 130, 246, ${intensity})` 
+                                  : darkMode ? '#374151' : '#F3F4F6'
+                              }}
+                              title={`${day} ${hour}:00 - ${pattern?.count || 0} submissions`}
+                            />
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Mood Distribution Pie Chart */}
+            <div className={`rounded-lg shadow p-6 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h3 className={`text-lg font-semibold mb-4 transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Overall Mood Distribution</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Great', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.great, 0), fill: '#10B981' },
+                        { name: 'Good', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.good, 0), fill: '#3B82F6' },
+                        { name: 'Okay', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.okay, 0), fill: '#F59E0B' },
+                        { name: 'Down', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.down, 0), fill: '#EF4444' }
+                      ].filter(item => item.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({name, percent}) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {[
+                        { name: 'Great', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.great, 0), fill: '#10B981' },
+                        { name: 'Good', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.good, 0), fill: '#3B82F6' },
+                        { name: 'Okay', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.okay, 0), fill: '#F59E0B' },
+                        { name: 'Down', value: sentimentData.reduce((sum, s) => sum + s.moodDistribution.down, 0), fill: '#EF4444' }
+                      ].filter(item => item.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+                        border: `1px solid ${darkMode ? '#374151' : '#E5E7EB'}`,
+                        color: darkMode ? '#FFFFFF' : '#000000'
+                      }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
 
           {/* User Engagement */}
-          <div className="bg-white rounded-lg shadow mb-8">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">User Engagement</h3>
+          <div className={`rounded-lg shadow mb-8 transition-colors duration-200 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`px-6 py-4 border-b transition-colors duration-200 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>User Engagement</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className={`transition-colors duration-200 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reflections</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Confidence</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Streak</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>User</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Team</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Reflections</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Journal</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Avg Confidence</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Streak</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last Activity</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className={`divide-y transition-colors duration-200 ${darkMode ? 'bg-gray-800 divide-gray-700' : 'bg-white divide-gray-200'}`}>
                   {userEngagement.slice(0, 10).map((user) => (
-                    <tr key={user.userId}>
+                    <tr key={user.userId} className={`transition-colors duration-200 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className={`text-sm font-medium transition-colors duration-200 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name}</div>
+                        <div className={`text-sm transition-colors duration-200 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{user.email}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.team}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.totalReflections}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.avgConfidence}/10</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.streak} days</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>{user.team}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                        <div className="flex items-center">
+                          <BookOpen className="h-4 w-4 mr-1" />
+                          {user.totalReflections}
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                        <div className="flex items-center">
+                          <FileText className="h-4 w-4 mr-1" />
+                          {user.totalJournalEntries}
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>{user.avgConfidence}/10</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                        <div className="flex items-center">
+                          <Clock className="h-4 w-4 mr-1" />
+                          {user.streak} days
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm transition-colors duration-200 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         {new Date(user.lastActivity).toLocaleDateString()}
                       </td>
                     </tr>

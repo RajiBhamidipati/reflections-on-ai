@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function AuthForm() {
   const [isLogin, setIsLogin] = useState(true)
   const [showPasswordReset, setShowPasswordReset] = useState(false)
+  const router = useRouter()
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -284,7 +286,7 @@ export default function AuthForm() {
       {isLogin && (
         <div className="mt-4 text-center">
           <button
-            onClick={() => setShowPasswordReset(true)}
+            onClick={() => router.push('/auth/reset-password')}
             className="text-sm text-blue-600 hover:text-blue-500"
           >
             Forgot your password?
